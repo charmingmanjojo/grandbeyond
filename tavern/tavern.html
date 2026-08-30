@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>ハンターのさかば</title>
+<style>
+@font-face{
+  font-family:'HunterX';
+  src:url('assets/hunterx.otf') format('opentype');
+  font-display:block;
+}
+:root{
+  --ink:#000;
+  --paper:#fff;
+  --panel:#f2f2f0;
+  --panel-edge:#c9c9c4;
+  --link:#1f5fd0;
+  --link-hot:#0b3fa8;
+  --font-en:'MS PGothic','ＭＳ Ｐゴシック','MS UI Gothic','Osaka',sans-serif;
+}
+*{box-sizing:border-box;}
+html,body{height:100%;}
+body{
+  margin:0; background:#000; color:var(--ink);
+  font-family:var(--font-en);
+  overflow:hidden;
+  -webkit-tap-highlight-color:transparent;
+}
+#stage{position:fixed; inset:0; background:#000;}
+
+/* ---------- generic scene ---------- */
+.scene{
+  position:absolute; inset:0; opacity:0; visibility:hidden;
+  transition:opacity .0s linear;
+  display:flex; align-items:center; justify-content:center;
+}
+.scene.on{opacity:1; visibility:visible;}
+.scene.fade{transition:opacity 900ms ease;}
+
+/* splash */
+#sc-splash{background:#fff;}
+#sc-splash img{max-width:min(78vw,760px); width:100%; height:auto; display:block;}
+
+/* white flash */
+#flash{
+  position:absolute; inset:0; background:#fff; opacity:0; pointer-events:none;
+  transition:opacity 700ms ease; z-index:50;
+}
+#flash.on{opacity:1;}
+
+/* video + stills share a letterboxed frame */
+#sc-video, #sc-bar{background:#000;}
+#doors{width:100%; height:100%; object-fit:contain; display:block; background:#000;}
+#sc-bar img{width:100%; height:100%; object-fit:contain; display:block;}
+
+/* click affordance */
+.tap{
+  position:absolute; left:50%; bottom:5vh; transform:translateX(-50%);
+  color:#fff; font-size:14px; letter-spacing:.12em; text-shadow:0 2px 6px rgba(0,0,0,.9);
+  background:rgba(0,0,0,.42); border:1px solid rgba(255,255,255,.5); padding:8px 18px;
+  animation:pulse 2s ease-in-out infinite; pointer-events:none; z-index:20; border-radius:2px;
+}
+@keyframes pulse{0%,100%{opacity:.35;}50%{opacity:1;}}
+
+/* ---------- registry (scroll interface) ---------- */
+#sc-registry{background:#111;}
+.reg-wrap{position:absolute; inset:0; display:flex;}
+.reg-bg{
+  position:absolute; inset:0;
+  background:url('assets/bartender.jpg') center right/cover no-repeat;
+}
+.reg-bg::after{content:""; position:absolute; inset:0; background:rgba(0,0,0,.12);}
+
+/* the white sheet, like the in-show list panel */
+.sheet{
+  position:relative; z-index:2;
+  width:min(62%,860px); height:100%;
+  background:linear-gradient(180deg,#fdfdfc,#f0f0ee);
+  border-right:2px solid #b9b9b3;
+  box-shadow:8px 0 26px rgba(0,0,0,.45);
+  display:flex; flex-direction:column;
+}
+.sheet-hd{
+  padding:14px 20px 10px; border-bottom:1px solid var(--panel-edge); flex:0 0 auto;
+  display:flex; align-items:baseline; justify-content:space-between; gap:12px;
+}
+.sheet-hd .ttl{font-family:'HunterX',sans-serif; font-size:26px; line-height:1;}
+.sheet-hd .ttl .en{display:none; font-family:var(--font-en); font-size:19px; font-weight:700;}
+body.tl .sheet-hd .ttl .jp{display:none;}
+body.tl .sheet-hd .ttl .en{display:inline;}
+.sheet-hd .cnt{font-size:13px; color:#666; white-space:nowrap;}
+
+.filters{
+  display:flex; gap:8px; padding:10px 20px; border-bottom:1px solid var(--panel-edge);
+  flex:0 0 auto; overflow-x:auto;
+}
+.filters button{
+  font-family:var(--font-en); font-size:13px; padding:6px 13px; cursor:pointer; white-space:nowrap;
+  border:1px solid #b9b9b3; background:#fff; color:#333;
+}
+.filters button.on{background:var(--ink); color:#fff; border-color:var(--ink);}
+
+.searchbar{padding:10px 20px; border-bottom:1px solid var(--panel-edge); flex:0 0 auto;}
+.searchbar input{
+  width:100%; font-family:'HunterX',sans-serif; font-size:19px; padding:8px 10px;
+  border:1px solid #b9b9b3; background:#fff; color:#000;
+}
+body.tl .searchbar input{font-family:var(--font-en); font-size:15px;}
+.searchbar input:focus{outline:2px solid var(--link); outline-offset:-2px;}
+
+/* the actual scrolling list */
+.list{
+  flex:1 1 auto; overflow-y:auto; overscroll-behavior:contain;
+  padding:8px 0 30px;
+  scrollbar-width:auto;
+}
+.list::-webkit-scrollbar{width:16px;}
+.list::-webkit-scrollbar-track{background:#e4e4e0;}
+.list::-webkit-scrollbar-thumb{background:#b6b6b0; border-radius:9px; border:3px solid #e4e4e0;}
+.list::-webkit-scrollbar-thumb:hover{background:#9a9a94;}
+
+.row{
+  display:block; width:100%; text-align:left; background:none; border:none; cursor:pointer;
+  padding:7px 20px; font-family:'HunterX',sans-serif; font-size:27px; line-height:1.5; color:#111;
+  border-left:5px solid transparent;
+}
+.row .en{display:none; font-family:var(--font-en); font-size:18px; font-weight:700;}
+body.tl .row .jp{display:none;}
+body.tl .row .en{display:inline;}
+.row .sub{
+  display:block; font-family:var(--font-en); font-size:12px; color:#7a7a72; margin-top:1px; letter-spacing:.02em;
+}
+.row:hover, .row:focus-visible{background:#e9eef8; color:var(--link); outline:none; border-left-color:var(--link);}
+.row.sel{color:var(--link-hot); background:#dfe8fa; border-left-color:var(--link-hot);}
+.row.sel .sub{color:#4a68a8;}
+.row.head{
+  cursor:default; font-family:var(--font-en); font-size:12px; letter-spacing:.14em; color:#8a8a80;
+  padding:16px 20px 5px; border-left-color:transparent; background:none;
+}
+.row.head:hover{background:none; color:#8a8a80;}
+.empty{padding:26px 20px; font-size:14px; color:#888;}
+
+/* detail pane */
+.detail{
+  position:relative; z-index:2; flex:1; min-width:0;
+  display:flex; align-items:flex-end; justify-content:center; padding:26px;
+}
+.card{
+  width:100%; max-width:380px; background:rgba(252,252,250,.96);
+  border:2px solid #111; box-shadow:6px 6px 0 rgba(0,0,0,.5); padding:16px 18px 18px;
+  max-height:76vh; overflow-y:auto;
+}
+.card.hide{display:none;}
+.card h2{margin:0 0 2px; font-family:'HunterX',sans-serif; font-size:30px; line-height:1.2;}
+.card h2 .en{display:none; font-family:var(--font-en); font-size:21px;}
+body.tl .card h2 .jp{display:none;}
+body.tl .card h2 .en{display:inline;}
+.card .role{font-size:12px; color:#666; margin-bottom:12px; letter-spacing:.06em;}
+.card dl{margin:0; display:grid; grid-template-columns:auto 1fr; gap:6px 12px; font-size:13px;}
+.card dt{color:#7a7a72; white-space:nowrap;}
+.card dd{margin:0; font-weight:700;}
+.card .note{margin-top:12px; font-size:12.5px; color:#555; line-height:1.7; border-top:1px solid #ddd; padding-top:10px;}
+
+/* top-right controls */
+.hud{position:absolute; top:0; right:0; z-index:30; display:flex; gap:8px; padding:12px;}
+.hud button{
+  font-family:var(--font-en); font-size:12px; font-weight:700; padding:7px 13px; cursor:pointer;
+  background:rgba(255,255,255,.92); color:#111; border:2px solid #111; box-shadow:2px 2px 0 rgba(0,0,0,.5);
+}
+.hud button:hover{background:#e9eef8;}
+#skip{display:none;}
+
+/* ---------- character sheet overlay ---------- */
+#sheetOverlay{
+  position:absolute; inset:0; z-index:60; display:none;
+  background:rgba(10,10,12,.6); padding:24px; overflow-y:auto;
+}
+#sheetOverlay.on{display:flex; align-items:flex-start; justify-content:center;}
+.ov-panel{
+  width:min(720px,100%); background:#fbfbf9; border:2px solid #111;
+  box-shadow:8px 8px 0 rgba(0,0,0,.55); margin:auto;
+}
+.ov-hd{
+  background:#111; color:#fff; padding:12px 16px; display:flex; justify-content:space-between;
+  align-items:center; font-size:14px; font-weight:700; letter-spacing:.06em;
+}
+.ov-hd .jp{font-family:'HunterX',sans-serif; font-size:19px;}
+.ov-hd button{background:none; border:none; color:#fff; font-size:19px; cursor:pointer; line-height:1;}
+.ov-body{padding:18px 18px 22px;}
+.ov-lead{margin:0 0 16px; font-size:13px; color:#555; line-height:1.7;}
+.ov-lead .jp{font-family:'HunterX',sans-serif; font-size:17px; color:#222;}
+.g2{display:grid; grid-template-columns:1fr 1fr; gap:12px 14px;}
+.ov-body label{display:flex; flex-direction:column; gap:5px; font-size:12px; font-weight:700; color:#333;}
+.ov-body label.full, .g2 label.full{grid-column:1/-1;}
+.ov-body input, .ov-body select, .ov-body textarea{
+  font-family:var(--font-en); font-size:14px; padding:8px 10px; border:1px solid #b9b9b3;
+  background:#fff; color:#111; font-weight:400;
+}
+.ov-body textarea{min-height:78px; resize:vertical; line-height:1.6;}
+.ov-body input:focus, .ov-body select:focus, .ov-body textarea:focus{outline:2px solid var(--link); outline-offset:-2px;}
+.fc-row{display:flex; gap:14px; margin-bottom:16px; flex-wrap:wrap;}
+.fc-box{
+  width:110px; height:144px; border:2px solid #111; background:#eee; flex:0 0 auto;
+  display:flex; align-items:center; justify-content:center; overflow:hidden;
+}
+.fc-box img{width:100%; height:100%; object-fit:cover;}
+.fc-ph{font-size:11px; color:#888;}
+.fc-fields{flex:1 1 220px; display:flex; flex-direction:column; gap:10px;}
+#icBox, #mcBox{margin-top:14px;}
+.norec{border:2px solid #111; background:#f6efd6; padding:11px 13px; font-size:13px; margin-bottom:14px;}
+.ooc{border:2px dashed #96382b; background:#fdf3f2; padding:18px 14px 14px; position:relative;}
+.ooc-tag{
+  position:absolute; top:-11px; left:12px; background:#fbfbf9; border:2px solid #96382b;
+  padding:0 8px; font-size:11px; font-weight:700; color:#96382b;
+}
+.ooc label{margin-bottom:10px;}
+.ov-foot{
+  display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;
+  margin-top:18px; padding-top:14px; border-top:1px solid #ddd;
+}
+.ov-note{font-size:12px; color:#666;}
+.ov-foot button{
+  background:#111; color:#fff; border:2px solid #111; padding:9px 20px; font-size:14px;
+  font-weight:700; cursor:pointer; font-family:var(--font-en);
+}
+.ov-foot button:hover{background:#333;}
+.ov-foot button.secondary{background:#fff; color:#111;}
+.ov-foot button.secondary:hover{background:#eee;}
+.ov-ok{display:none; margin-top:12px; padding:11px 13px; border:2px solid #1f7a37; background:#eaf6ec; font-size:13px;}
+.ov-ok.on{display:block;}
+@media (max-width:860px){
+  #sheetOverlay{padding:10px;}
+  .g2{grid-template-columns:1fr;}
+}
+
+/* mobile */
+@media (max-width:860px){
+  .reg-wrap{flex-direction:column;}
+  .sheet{width:100%; height:62%; border-right:none; border-bottom:2px solid #b9b9b3; box-shadow:0 6px 18px rgba(0,0,0,.5);}
+  .detail{flex:1; padding:12px; align-items:stretch;}
+  .card{max-width:none; max-height:none; overflow-y:auto;}
+  .row{font-size:23px; padding:8px 16px;}
+  body.tl .row .en{font-size:16px;}
+  .sheet-hd{padding:12px 16px 8px;}
+  .sheet-hd .ttl{font-size:21px;}
+  .sheet-hd .cnt{display:none;}
+  .hud{padding:8px;}
+  .hud button{font-size:11px; padding:6px 10px;}
+  .filters,.searchbar{padding:8px 16px;}
+  .tap{font-size:12px; bottom:4vh;}
+}
+@media (max-height:520px) and (orientation:landscape){
+  .sheet{width:56%; height:100%;}
+  .reg-wrap{flex-direction:row;}
+}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<div id="stage">
+
+  <!-- 1. splash card -->
+  <div class="scene fade on" id="sc-splash">
+    <img src="assets/splash.jpg" alt="Hunter's Tavern">
+  </div>
+
+  <!-- 2. doors video -> freezes on last frame as the idle scene -->
+  <div class="scene" id="sc-video">
+    <video id="doors" playsinline muted preload="auto" poster="assets/tavern.jpg">
+      <source src="assets/doors.mp4" type="video/mp4">
+    </video>
+    <div class="tap" id="tapVideo" style="display:none;">
+      <span class="jp">クリック</span><span class="en" style="display:none;">CLICK TO CONTINUE</span>
+    </div>
+  </div>
+
+  <!-- 3. approach the bar -->
+  <div class="scene" id="sc-bar">
+    <img src="assets/bar.jpg" alt="The bar">
+    <div class="tap">
+      <span class="jp">クリック</span><span class="en" style="display:none;">CLICK TO CONTINUE</span>
+    </div>
+  </div>
+
+  <!-- 4. registry -->
+  <div class="scene" id="sc-registry">
+    <div class="reg-wrap">
+      <div class="reg-bg"></div>
+
+      <div class="sheet">
+        <div class="sheet-hd">
+          <span class="ttl">
+            <span class="jp">ハンターめいぼ</span>
+            <span class="en">HUNTER REGISTRY</span>
+          </span>
+          <span class="cnt" id="count">—</span>
+        </div>
+
+        <div class="filters" id="filters">
+          <button class="on" data-f="all"><span class="jp">ぜんぶ</span><span class="en" style="display:none;">All</span></button>
+          <button data-f="hunter"><span class="jp">ハンター</span><span class="en" style="display:none;">Hunters</span></button>
+          <button data-f="topic"><span class="jp">こうもく</span><span class="en" style="display:none;">Topics</span></button>
+          <button id="mine" style="margin-left:auto; background:#111; color:#fff; border-color:#111;">
+            <span class="jp">じぶんの とうろく</span><span class="en" style="display:none;">My Entry</span>
+          </button>
+        </div>
+
+        <div class="searchbar">
+          <input id="q" placeholder="けんさく" aria-label="Search">
+        </div>
+
+        <div class="list" id="list" tabindex="0"></div>
+      </div>
+
+      <div class="detail">
+        <div class="card hide" id="card"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- character sheet, Hunter-only by virtue of living in here -->
+  <div id="sheetOverlay" aria-hidden="true">
+    <div class="ov-panel" role="dialog" aria-label="My registry entry">
+      <div class="ov-hd">
+        <span><span class="jp">じぶんの とうろく</span><span class="en" style="display:none;">MY REGISTRY ENTRY</span></span>
+        <button id="ovClose" aria-label="Close">✕</button>
+      </div>
+      <div class="ov-body">
+        <p class="ov-lead">
+          <span class="jp">この らん は ハンターめいぼ に のります。ほかの ハンター が よめます。</span>
+          <span class="en" style="display:none;">What you enter here appears in the Hunter Registry above, readable by every other Hunter.</span>
+        </p>
+
+        <div class="f full" id="pickerWrap" style="display:none;">
+          <label>Your characters
+            <select id="sPicker"><option value="">+ New character</option></select>
+          </label>
+        </div>
+
+        <div class="fc-row">
+          <div class="fc-box" id="fcBox"><span class="fc-ph">PHOTO</span></div>
+          <div class="fc-fields">
+            <label>Faceclaim (image URL)<input id="fcUrl" placeholder="https://..."></label>
+            <label>Image source / credit (OOC)<input id="fcCredit" placeholder="artist, series, source"></label>
+          </div>
+        </div>
+
+        <div class="g2">
+          <label>Name (rune label)<input id="sName" placeholder="クロガネ・レン"></label>
+          <label>Name (readable)<input id="sNameEn" placeholder="Ren Kurogane"></label>
+          <label>Age<input id="sAge" type="number" min="0" max="200"></label>
+          <label>Height (cm)<input id="sHeight" type="number" min="0" max="300"></label>
+          <label>License class
+            <select id="sLicense">
+              <option>Rookie Hunter</option><option>Hunter</option>
+              <option>Blacklist Hunter</option><option>Specialist Hunter</option>
+              <option>Double Star</option><option>Triple Star</option>
+            </select>
+          </label>
+          <label>Nen category
+            <select id="sNen">
+              <option>Undetermined</option><option>Enhancer</option><option>Transmuter</option>
+              <option>Conjurer</option><option>Emitter</option><option>Manipulator</option><option>Specialist</option>
+            </select>
+          </label>
+          <label class="full">Place of origin
+            <select id="sOrigin">
+              <option value="">—</option>
+              <option value="azian">Azian Continent</option>
+              <option value="yorbian">Yorbian Continent</option>
+              <option value="northern">Northern Continent</option>
+              <option value="kakin">Kakin Empire</option>
+              <option value="whale">Whale Island</option>
+              <option value="padokea">Republic of Padokea</option>
+              <option value="meteor">Meteor City</option>
+              <option value="other">Other / elsewhere</option>
+            </select>
+          </label>
+        </div>
+
+        <div id="icBox">
+          <label class="full">Background<textarea id="sBio" placeholder="As it appears on the public record."></textarea></label>
+        </div>
+
+        <div id="mcBox" style="display:none;">
+          <div class="norec">
+            <b><span class="jp">こせき が みつかりません</span><span class="en" style="display:none;">NO CIVIL RECORD FOUND</span></b><br>
+            <span class="jp">りゅうせいがい の じゅうみん は とうろく されて いません。</span>
+            <span class="en" style="display:none;">Meteor City residents are unregistered, so nothing can be retrieved.</span>
+          </div>
+          <div class="ooc">
+            <span class="ooc-tag">STAFF USE — OOC</span>
+            <label class="full">Who is this character? (OOC)<textarea id="mcWho" placeholder="Plainly — no in-universe framing."></textarea></label>
+            <label class="full">Background (OOC)<textarea id="mcBio" placeholder="How they grew up, how they left."></textarea></label>
+            <div class="g2">
+              <label>Where they're from (OOC)<input id="mcFrom" placeholder="District, sector, or nothing"></label>
+              <label>Ties / associates (OOC)<input id="mcTies"></label>
+            </div>
+          </div>
+        </div>
+
+        <div class="ov-foot">
+          <span class="ov-note">Edits are reviewed by staff before they appear in the registry.</span>
+          <span style="display:flex; gap:8px;">
+            <button id="ovSaveDraft" class="secondary"><span class="jp">したがき</span><span class="en" style="display:none;">Save Draft</span></button>
+            <button id="ovSubmit"><span class="jp">しんさに だす</span><span class="en" style="display:none;">Submit for Review</span></button>
+          </span>
+        </div>
+        <div class="ov-ok" id="ovOk"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="flash"></div>
+
+  <div class="hud">
+    <button id="tl">あ / A</button>
+    <button id="skip">Skip</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- Supabase config ----------
+  // Same project as index.html. Fill these in the same way; leave them
+  // as-is to keep using the built-in sample registry entries below.
+  var SUPABASE_URL = "YOUR_SUPABASE_URL";
+  var SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
+  var LIVE = /^https:\/\/.+\.supabase\.co/.test(SUPABASE_URL) && SUPABASE_ANON_KEY.length > 20;
+  var sb = LIVE ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+  var currentUser = null; // set once we know who's signed in (LIVE mode only)
+
+  /* =========================================================
+     TOPICS — curated world flavor, not user data, always shown.
+     jp = Hunter-alphabet (kana) label, en = readable label.
+     ========================================================= */
+  var TOPICS = [
+    {type:"topic",  jp:"グリードアイランド", en:"Greed Island",
+     meta:{"種別":"ゲーム / Game","じょうたい":"Active"},
+     note:"A Nen-made game cartridge. Entry is limited and expensive; most listings here concern card trades and party recruitment."},
+    {type:"topic",  jp:"ハンターしけん", en:"Hunter Exam",
+     meta:{"かい":"287th","じょうたい":"Open"},
+     note:"Registration, venue rumours, and examiner sightings. Post nothing here that identifies a sitting examiner."},
+    {type:"topic",  jp:"きょうかいオークション", en:"Association Auction",
+     meta:{"ばしょ":"Yorknew City","つぎ":"September"},
+     note:"Closed-bid lots. Attendance requires a license and proof of funds."},
+    {type:"topic",  jp:"くらいたいりく", en:"Dark Continent",
+     meta:{"きょか":"Restricted"},
+     note:"Access requires authorization far above a standard license. Listed for completeness only."},
+    {type:"topic",  jp:"しょうきんくび", en:"Bounty List",
+     meta:{"けんすう":"41 open"},
+     note:"Blacklist Hunter postings. Claiming a bounty requires filing intent with the Association first."}
+  ];
+
+  /* =========================================================
+     SAMPLE hunters — shown only in DEMO mode (no Supabase configured
+     yet), so the registry isn't empty while you're still setting up.
+     In LIVE mode these are replaced entirely by a real query against
+     the hunter_registry view, which is already filtered server-side
+     to is_hunter = true AND status = 'approved'.
+     ========================================================= */
+  var SAMPLE_HUNTERS = [
+    {type:"hunter", jp:"クロガネ・レン", en:"Ren Kurogane",
+     meta:{"めんきょ":"Rookie Hunter","ねん":"Enhancer","しゅっしん":"Padokea"},
+     note:"Filed under general licensing. Frequents the auction floor."},
+    {type:"hunter", jp:"シオリ・ハザマ", en:"Shiori Hazama",
+     meta:{"めんきょ":"Blacklist Hunter","ねん":"Manipulator","しゅっしん":"Yorbian"},
+     note:"Bounty specialist. Three closed contracts this cycle."},
+    {type:"hunter", jp:"アルド・ヴェイン", en:"Aldo Vane",
+     meta:{"めんきょ":"Specialist Hunter","ねん":"Conjurer","しゅっしん":"Azian"},
+     note:"Ruins Hunter. Currently listed as off-continent."}
+  ];
+
+  var ENTRIES = TOPICS.concat(LIVE ? [] : SAMPLE_HUNTERS);
+
+  var ORIGIN_LABEL = {
+    azian:"Azian Continent", yorbian:"Yorbian Continent", northern:"Northern Continent",
+    kakin:"Kakin Empire", whale:"Whale Island", padokea:"Republic of Padokea",
+    meteor:"Meteor City", other:"Elsewhere"
+  };
+
+  function rowToEntry(row){
+    return {
+      type:"hunter",
+      id: row.id,
+      jp: row.name_rune || row.name_en,
+      en: row.name_en,
+      meta:{
+        "めんきょ": row.license_class || "—",
+        "ねん": row.nen_category || "—",
+        "しゅっしん": ORIGIN_LABEL[row.origin] || row.origin || "—"
+      },
+      note: row.background || ""
+    };
+  }
+
+  async function loadLiveRegistry(){
+    if(!LIVE) return;
+    try{
+      var res = await sb.from("hunter_registry").select("*").order("name_en");
+      if(res.error){ console.warn("registry query failed:", res.error); return; }
+      ENTRIES = TOPICS.concat((res.data || []).map(rowToEntry));
+      render();
+    }catch(e){
+      console.warn("registry query failed:", e);
+    }
+  }
+
+  var $ = function(id){ return document.getElementById(id); };
+  var body = document.body;
+
+  if(LIVE){
+    sb.auth.getSession().then(function(res){
+      currentUser = res.data && res.data.session && res.data.session.user;
+    });
+    sb.auth.onAuthStateChange(function(_e, session){
+      currentUser = session ? session.user : null;
+    });
+  }
+
+  /* ---------------- scene sequence ---------------- */
+  var flash = $("flash");
+  var scenes = { splash:$("sc-splash"), video:$("sc-video"), bar:$("sc-bar"), registry:$("sc-registry") };
+  var video = $("doors");
+  var step = 0;                       // 0 splash, 1 video, 2 bar, 3 registry
+  var awaiting = false;               // waiting on a click
+
+  function showScene(name, fade){
+    for(var k in scenes){
+      var el = scenes[k];
+      el.classList.toggle("fade", !!fade);
+      el.classList.toggle("on", k === name);
+    }
+  }
+
+  function whiteFlash(cb){
+    flash.classList.add("on");
+    setTimeout(function(){
+      cb();
+      // hold a beat on white, then reveal
+      setTimeout(function(){ flash.classList.remove("on"); }, 120);
+    }, 700);
+  }
+
+  function tell(scene){
+    try{ if(window.parent && window.parent !== window){ window.parent.postMessage({t:"tavern", scene:scene}, "*"); } }catch(err){}
+  }
+  tell("intro");
+
+  var reachedIdle = false;
+  // Land on the idle tavern frame and hand control to the player.
+  // Called by 'ended', by a load failure, or by the watchdog — whichever happens first.
+  function toIdle(){
+    if(reachedIdle || step > 1) return;
+    reachedIdle = true;
+    try{ video.pause(); }catch(err){}
+    showScene("video", false);   // poster (tavern.jpg) shows if the video never painted
+    awaiting = true;
+    step = 1;
+    $("tapVideo").style.display = "block";
+  }
+
+  function startVideo(){
+    showScene("video", false);
+    var p = video.play();
+    if(p && p.catch){
+      p.catch(function(){
+        // autoplay refused — the next click starts playback
+        $("tapVideo").style.display = "block";
+        awaiting = false;
+        autoplayBlocked = true;
+      });
+    }
+    // watchdog: if the file can't play at all, don't strand the player
+    setTimeout(function(){
+      if(!reachedIdle && (video.readyState === 0 || video.networkState === 3 || isNaN(video.duration))){
+        toIdle();
+      }
+    }, 4000);
+  }
+  var autoplayBlocked = false;
+  video.addEventListener("error", toIdle);
+  video.querySelector && (function(){
+    var src = video.querySelector("source");
+    if(src){ src.addEventListener("error", toIdle); }
+  })();
+
+  // 1) splash holds, then fades through white into the video
+  setTimeout(function(){
+    whiteFlash(startVideo);
+  }, 2200);
+
+  // 2) video ends -> it simply stays on its final frame (seamless by definition)
+  video.addEventListener("ended", toIdle);
+
+  // clicks advance: video-still -> bar -> registry (hard cuts, no effects)
+  function advance(){
+    if(!awaiting) return;
+    if(step === 1){
+      awaiting = false;
+      showScene("bar", false);       // hard cut
+      step = 2;
+      setTimeout(function(){ awaiting = true; }, 180);
+    } else if(step === 2){
+      awaiting = false;
+      showScene("registry", false);  // hard cut
+      step = 3;
+      $("skip").style.display = "none";
+      tell("registry");
+      loadLiveRegistry();
+      setTimeout(function(){ $("q").focus({preventScroll:true}); }, 60);
+    }
+  }
+
+  document.addEventListener("click", function(e){
+    if(e.target.closest(".hud")) return;
+    if(step >= 3) return;
+    if(autoplayBlocked && !reachedIdle){
+      // autoplay was refused; this click starts playback instead of advancing
+      autoplayBlocked = false;
+      $("tapVideo").style.display = "none";
+      video.play();
+      return;
+    }
+    advance();
+  });
+  document.addEventListener("keydown", function(e){
+    if(e.key === "Enter" || e.key === " "){
+      if(step < 3 && document.activeElement === document.body){ e.preventDefault(); advance(); }
+    }
+  });
+
+  // skip straight to the registry
+  $("skip").style.display = "inline-block";
+  $("skip").addEventListener("click", function(){
+    video.pause();
+    flash.classList.remove("on");
+    showScene("registry", false);
+    step = 3; awaiting = false;
+    tell("registry");
+    loadLiveRegistry();
+    this.style.display = "none";
+  });
+
+  /* ---------------- translate ---------------- */
+  $("tl").addEventListener("click", function(){
+    var on = body.classList.toggle("tl");
+    var jps = document.querySelectorAll(".jp"), ens = document.querySelectorAll(".en");
+    var i;
+    for(i=0;i<jps.length;i++){ jps[i].style.display = on ? "none" : ""; }
+    for(i=0;i<ens.length;i++){ ens[i].style.display = on ? "inline" : "none"; }
+  });
+
+  /* ---------------- registry list ---------------- */
+  var listEl = $("list"), cardEl = $("card"), qEl = $("q"), countEl = $("count");
+  var filter = "all", query = "", selected = -1;
+
+  function matches(e){
+    if(filter !== "all" && e.type !== filter) return false;
+    if(!query) return true;
+    var q = query.toLowerCase();
+    return (e.jp + " " + e.en).toLowerCase().indexOf(q) !== -1;
+  }
+
+  function render(){
+    var rows = [], shown = 0, lastType = null;
+    for(var i=0;i<ENTRIES.length;i++){
+      var e = ENTRIES[i];
+      if(!matches(e)) continue;
+      if(filter === "all" && e.type !== lastType){
+        lastType = e.type;
+        rows.push('<div class="row head">' + (e.type === "hunter" ? "HUNTERS" : "TOPICS") + '</div>');
+      }
+      shown++;
+      var sub = [];
+      for(var k in e.meta){ sub.push(e.meta[k]); }
+      rows.push(
+        '<button class="row' + (i === selected ? ' sel' : '') + '" data-i="' + i + '">' +
+          '<span class="jp">' + e.jp + '</span>' +
+          '<span class="en"' + (body.classList.contains("tl") ? '' : ' style="display:none"') + '>' + e.en + '</span>' +
+          '<span class="sub">' + sub.join(" · ") + '</span>' +
+        '</button>'
+      );
+    }
+    listEl.innerHTML = rows.length ? rows.join("") : '<div class="empty">みつかりません / No matches</div>';
+    countEl.textContent = shown + " / " + ENTRIES.length;
+    // keep jp/en visibility consistent after re-render
+    if(body.classList.contains("tl")){
+      var jps = listEl.querySelectorAll(".jp");
+      for(var j=0;j<jps.length;j++){ jps[j].style.display = "none"; }
+    }
+  }
+
+  function showCard(i){
+    var e = ENTRIES[i];
+    var dl = "";
+    for(var k in e.meta){ dl += "<dt>" + k + "</dt><dd>" + e.meta[k] + "</dd>"; }
+    cardEl.className = "card";
+    cardEl.innerHTML =
+      '<h2><span class="jp">' + e.jp + '</span><span class="en"' + (body.classList.contains("tl") ? '' : ' style="display:none"') + '>' + e.en + '</span></h2>' +
+      '<div class="role">' + (e.type === "hunter" ? "REGISTERED HUNTER" : "TAVERN TOPIC") + '</div>' +
+      '<dl>' + dl + '</dl>' +
+      '<div class="note">' + e.note + '</div>';
+  }
+
+  listEl.addEventListener("click", function(e){
+    var btn = e.target.closest(".row");
+    if(!btn || btn.classList.contains("head")) return;
+    selected = parseInt(btn.getAttribute("data-i"), 10);
+    render();
+    showCard(selected);
+  });
+
+  qEl.addEventListener("input", function(){ query = this.value.trim(); selected = -1; cardEl.className = "card hide"; render(); });
+
+  $("filters").addEventListener("click", function(e){
+    var b = e.target.closest("button");
+    if(!b) return;
+    var all = this.querySelectorAll("button");
+    for(var i=0;i<all.length;i++){ all[i].classList.remove("on"); }
+    b.classList.add("on");
+    filter = b.getAttribute("data-f");
+    selected = -1; cardEl.className = "card hide";
+    render();
+  });
+
+  /* ---------------- my entry (character sheet) ---------------- */
+  var ov = $("sheetOverlay");
+  var editingId = null;      // null = drafting a new character
+  var myCharacters = [];
+
+  async function openOv(){
+    tell("expand");
+    ov.classList.add("on"); ov.setAttribute("aria-hidden","false");
+    $("ovOk").classList.remove("on");
+    if(!LIVE) return;
+    if(!currentUser){
+      var res = await sb.auth.getUser();
+      currentUser = res.data && res.data.user;
+    }
+    if(currentUser){ await loadMyCharacters(); }
+    else{
+      $("pickerWrap").style.display = "none";
+      $("ovOk").textContent = "Not signed in — sign in on the main site, then reopen the Tavern.";
+      $("ovOk").classList.add("on");
+    }
+  }
+  function closeOv(){
+    ov.classList.remove("on"); ov.setAttribute("aria-hidden","true");
+    tell("collapse");
+  }
+  $("mine").addEventListener("click", openOv);
+  $("ovClose").addEventListener("click", closeOv);
+  ov.addEventListener("click", function(e){ if(e.target === ov){ closeOv(); } });
+  document.addEventListener("keydown", function(e){ if(e.key === "Escape" && ov.classList.contains("on")){ closeOv(); } });
+
+  // Meteor City has no civil record -> swap to the OOC block
+  $("sOrigin").addEventListener("change", function(){
+    var m = this.value === "meteor";
+    $("icBox").style.display = m ? "none" : "block";
+    $("mcBox").style.display = m ? "block" : "none";
+  });
+
+  $("fcUrl").addEventListener("input", function(){
+    var url = this.value.trim(), box = $("fcBox");
+    if(!url){ box.innerHTML = '<span class="fc-ph">PHOTO</span>'; return; }
+    var img = new Image();
+    img.onload = function(){ box.innerHTML = ""; box.appendChild(img); };
+    img.onerror = function(){ box.innerHTML = '<span class="fc-ph">Could not load</span>'; };
+    img.alt = "Faceclaim"; img.src = url;
+  });
+
+  function clearForm(){
+    editingId = null;
+    $("fcUrl").value = ""; $("fcUrl").dispatchEvent(new Event("input"));
+    $("fcCredit").value = "";
+    $("sName").value = ""; $("sNameEn").value = "";
+    $("sAge").value = ""; $("sHeight").value = "";
+    $("sLicense").value = "Rookie Hunter"; $("sNen").value = "Undetermined";
+    $("sOrigin").value = ""; $("sOrigin").dispatchEvent(new Event("change"));
+    $("sBio").value = "";
+    $("mcWho").value = ""; $("mcBio").value = ""; $("mcFrom").value = ""; $("mcTies").value = "";
+  }
+
+  function fillForm(row, ooc){
+    editingId = row.id;
+    $("sName").value = row.name_rune || "";
+    $("sNameEn").value = row.name_en || "";
+    $("sAge").value = row.age || "";
+    $("sHeight").value = row.height_cm || "";
+    $("sLicense").value = row.license_class || "Rookie Hunter";
+    $("sNen").value = row.nen_category || "Undetermined";
+    $("fcUrl").value = row.faceclaim_url || ""; $("fcUrl").dispatchEvent(new Event("input"));
+    $("fcCredit").value = row.faceclaim_credit || "";
+    $("sOrigin").value = row.origin || ""; $("sOrigin").dispatchEvent(new Event("change"));
+    $("sBio").value = row.background || "";
+    if(ooc){
+      $("mcWho").value = ooc.who_is_this || "";
+      $("mcBio").value = ooc.background_ooc || "";
+      $("mcFrom").value = ooc.from_ooc || "";
+      $("mcTies").value = ooc.ties_ooc || "";
+    }
+  }
+
+  async function loadMyCharacters(preserveId){
+    if(!currentUser) return;
+    var res = await sb.from("characters").select("*").eq("owner_id", currentUser.id).order("created_at");
+    myCharacters = res.data || [];
+    var picker = $("sPicker");
+    var opts = ['<option value="">+ New character</option>'];
+    myCharacters.forEach(function(c){
+      opts.push('<option value="' + c.id + '"' + (c.id === preserveId ? ' selected' : '') + '>' +
+        (c.name_en || "Untitled") + ' — ' + c.status + '</option>');
+    });
+    picker.innerHTML = opts.join("");
+    $("pickerWrap").style.display = "block";
+    if(preserveId){
+      var row = myCharacters.find(function(c){ return c.id === preserveId; });
+      if(row){
+        var ooc = null;
+        if(row.origin === "meteor"){
+          var oocRes = await sb.from("character_ooc").select("*").eq("character_id", row.id).maybeSingle();
+          ooc = oocRes.data;
+        }
+        fillForm(row, ooc);
+      }
+    } else {
+      picker.value = "";
+      clearForm();
+    }
+  }
+
+  $("sPicker").addEventListener("change", async function(){
+    var id = this.value;
+    if(!id){ clearForm(); return; }
+    var row = myCharacters.find(function(c){ return c.id === id; });
+    if(!row) return;
+    var ooc = null;
+    if(row.origin === "meteor"){
+      var oocRes = await sb.from("character_ooc").select("*").eq("character_id", id).maybeSingle();
+      ooc = oocRes.data;
+    }
+    fillForm(row, ooc);
+  });
+
+  function collectPayload(status){
+    var isMeteor = $("sOrigin").value === "meteor";
+    return {
+      name_rune: $("sName").value.trim(),
+      name_en: $("sNameEn").value.trim(),
+      age: $("sAge").value ? parseInt($("sAge").value, 10) : null,
+      height_cm: $("sHeight").value ? parseInt($("sHeight").value, 10) : null,
+      faceclaim_url: $("fcUrl").value.trim(),
+      faceclaim_credit: $("fcCredit").value.trim(),
+      license_class: $("sLicense").value,
+      nen_category: $("sNen").value,
+      origin: $("sOrigin").value,
+      background: isMeteor ? null : $("sBio").value.trim(),
+      status: status
+    };
+  }
+
+  async function saveEntry(status){
+    var ok = $("ovOk");
+    ok.classList.remove("on");
+    if(!$("sNameEn").value.trim()){
+      ok.textContent = "A readable name is required.";
+      ok.classList.add("on");
+      return;
+    }
+    if(!LIVE){
+      ok.textContent = "Saved locally — connect Supabase (see SUPABASE_SETUP.md) for this to persist.";
+      ok.classList.add("on");
+      return;
+    }
+    if(!currentUser){
+      ok.textContent = "Not signed in — sign in on the main site, then reopen the Tavern.";
+      ok.classList.add("on");
+      return;
+    }
+
+    var payload = collectPayload(status);
+    var charRes = editingId
+      ? await sb.from("characters").update(payload).eq("id", editingId).select().maybeSingle()
+      : await sb.from("characters").insert(payload).select().maybeSingle();
+
+    if(charRes.error){
+      ok.textContent = "Could not save: " + charRes.error.message;
+      ok.classList.add("on");
+      return;
+    }
+
+    var savedId = charRes.data.id;
+
+    if($("sOrigin").value === "meteor"){
+      await sb.from("character_ooc").upsert({
+        character_id: savedId,
+        who_is_this: $("mcWho").value.trim(),
+        background_ooc: $("mcBio").value.trim(),
+        from_ooc: $("mcFrom").value.trim(),
+        ties_ooc: $("mcTies").value.trim()
+      });
+    }
+
+    ok.textContent = status === "pending"
+      ? "Submitted for review. Staff will approve or return it."
+      : "Saved as a draft.";
+    ok.classList.add("on");
+
+    await loadMyCharacters(savedId);
+    loadLiveRegistry(); // in case an approval-cycle change just affected what others can see
+  }
+
+  $("ovSaveDraft").addEventListener("click", function(){ saveEntry("draft"); });
+  $("ovSubmit").addEventListener("click", function(){ saveEntry("pending"); });
+
+  render();
+})();
+</script>
+</body>
+</html>
